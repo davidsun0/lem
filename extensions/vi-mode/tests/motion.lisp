@@ -234,9 +234,12 @@
       (cmd "3gg")
       (ok (buf= #?"abc\ndef\ng[h]i\njkl\n"))
       (cmd "G")
-      (ok (buf= #?"abc\ndef\nghi\nj[k]l\n"))
+      (ok (buf= #?"abc\ndef\nghi\njkl\n[]"))
       (cmd "2G")
-      (ok (buf= #?"abc\nd[e]f\nghi\njkl\n")))))
+      (ok (buf= #?"abc\n[d]ef\nghi\njkl\n")))
+    (with-vi-buffer (#?"[1]23\n  6")
+      (cmd "G")
+      (ok (buf= #?"123\n  [6]")))))
 
 (deftest vi-find-char
   (with-fake-interface ()

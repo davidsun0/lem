@@ -358,23 +358,31 @@ Move the cursor to the first non-blank character of the line."
 
 (define-operator vi-delete (start end type) ("<R>")
     (:move-point nil)
-  (when (point= start end)
-    ;; 'dd' on the empty line at the end of a buffer deletes trailing newlines,
-    ;; but only if the buffer is not empty (i.e. cursor is not at the start of buffer)
-    (if (and (eq 'vi-delete (command-name (this-command)))
-             (not (this-motion-command))
-             (not (start-buffer-p end)))
-        (character-offset end -1)
-        (return-from vi-delete)))
+  ;; Return if no text will be deleted (start and end are the same)
+  ;; except for some commands deleting the last newline in a file.
+  (when (and (point= start end)
+             (not (end-buffer-p end)))
+    (return-from vi-delete))
   (let ((pos (point-charpos (current-point)))
-        (ends-with-newline (and (character-at end -1)
-                                (char= (character-at end -1) #\Newline)))
+        (ends-with-newline (and (not (start-buffer-p end))
+                                (start-line-p end)))
         (column-start (point-column start))
         (column-end (point-column end)))
     (delete-region start end :type type)
     (when (and (eq type :line)
                (not ends-with-newline)
-               (not (= (position-at-point start) 1)))
+               (not (start-buffer-p start)))
+      (delete-previous-char))
+    ;; These commands can delete a newline at the end of a buffer:
+    (when (and ends-with-newline
+               (not (start-buffer-p start))
+               (or
+                ;; 'dd' on the trailing newline
+                (and (null (this-motion-command))
+                     (point= start end))
+                ;; 'dG'
+                (eq 'vi-goto-line (and (this-motion-command)
+                                       (command-name (this-motion-command))))))
       (delete-previous-char))
     (when (eq 'vi-delete (command-name (this-command)))
       (case type
@@ -826,15 +834,9 @@ Move the cursor to the first non-blank character of the line."
     (:type :line
      :jump t
      :default-n-arg nil)
-  (let ((col (point-charpos (current-point))))
-    (cond
-      ((null n)
-       (move-to-end-of-buffer)
-       (when (and (bolp (current-point))
-                  (eolp (current-point)))
-         (line-offset (current-point) -1)))
-      (t (goto-line n)))
-    (move-to-column (current-point) col)))
+  (cond
+    (n (goto-line n))
+    (t (move-to-end-of-buffer))))
 
 (define-motion vi-goto-column (&optional (n 1)) (:universal)
     (:type :exclusive
